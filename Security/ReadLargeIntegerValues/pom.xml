@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.datalogics.pdfl.samples</groupId>
+  <artifactId>ReadLargeIntegerValues</artifactId>
+  <version>1.0-SNAPSHOT</version>
+
+  <properties>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
+
+    <!-- The PDFInteger.getLongValue() accessor demonstrated here (APDFL-6717) is
+         not yet in a released com.datalogics.pdfl:pdfl package, so this sample
+         compiles against a local DLE build that contains it. This directory also
+         holds the JNI bridge, the APDFL native DLLs, and the Resources folder,
+         so it is all that is needed on the run-time library path (see README).
+
+         Once the fix ships, replace the system-scoped dependency below with the
+         released pdfl artifact + jni/resources classifiers, as in the other
+         samples in this repository. -->
+    <dle.generators>C:/Users/saharay/dle/build/release-x86_64/generators</dle.generators>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.datalogics.pdfl</groupId>
+      <artifactId>pdfl</artifactId>
+      <version>local-dle-build</version>
+      <scope>system</scope>
+      <systemPath>${dle.generators}/com.datalogics.PDFL.jar</systemPath>
+    </dependency>
+  </dependencies>
+</project>
