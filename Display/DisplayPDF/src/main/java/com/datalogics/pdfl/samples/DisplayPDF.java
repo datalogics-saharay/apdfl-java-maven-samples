@@ -31,7 +31,10 @@ public class  DisplayPDF extends JComponent {
 	private double zoom = 1.0; // percent to scale/zoom the page
 	private List<Quad> highlightedQuads = new ArrayList<Quad>();
     private Matrix matrix = new Matrix();
-    
+    // APDFL-6716: the optional-content (layer) visibility state to render with.
+    // Null means "use the document's default optional-content context" (legacy behavior).
+    private OptionalContentContext occ = null;
+
 	public DisplayPDF() {
 		
 		final Dimension d = new Dimension(400, 500);
@@ -44,6 +47,13 @@ public class  DisplayPDF extends JComponent {
 	
 	public void setDocument(Document _document) {
 		this.currentDoc = _document;
+		this.occ = null; // reset; ViewerFrame supplies the new document's context if it has layers
+	}
+
+	// APDFL-6716: set the optional-content (layer) visibility state used when rendering.
+	// Pass null to render with the document's default optional-content context.
+	public void setOptionalContentContext(OptionalContentContext _occ) {
+		this.occ = _occ;
 	}
 
     public void clearHighlights() {
@@ -98,9 +108,13 @@ public class  DisplayPDF extends JComponent {
 	Rect updateRect = new Rect((int)cropBox.getLeft(), (int)cropBox.getBottom(),
 				   (int)cropBox.getLeft() + width, (int)cropBox.getBottom() + height);
 		
-        pg.drawContents(image, 
+        // APDFL-6716: render using the caller-supplied optional-content context so that
+        // layer visibility can be controlled non-destructively. Passing null preserves the
+        // original behavior (the document's default optional-content context).
+        pg.drawContents(image,
                         matrix, // matrix
-                        updateRect);  
+                        updateRect,
+                        occ);
         // TODO Could speed this up more by making a copy? Sources seem to indicate that once the DataBuffer for an
         // image has been accessed, the JVM can no longer optimize by keeping the image in VRAM.  Since
         // the call to drawContents does just that, we may want to create a new buffered image from the result

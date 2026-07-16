@@ -34,7 +34,10 @@ public class ViewerFrame extends javax.swing.JFrame implements ActionListener, I
 	private int currentPage = 0;
     private String lastSearchTerm = null;
     private final  DisplayPDF displayPDF;
-    
+    // APDFL-6716: shared optional-content context and the menu used to toggle layer visibility.
+    private OptionalContentContext occ = null;
+    private javax.swing.JMenu layersMenu;
+
     // Check that we are on Mac OS X.  This is crucial to loading and using the OSXAdapter class.
     public static boolean MAC_OS_X = (System.getProperty("os.name").toLowerCase().startsWith("mac os x"));
 
@@ -45,6 +48,14 @@ public class ViewerFrame extends javax.swing.JFrame implements ActionListener, I
         displayPDF = new DisplayPDF();
         initComponents();
         jScrollPane1.setViewportView(displayPDF);
+
+        // APDFL-6716: add a Layers menu, populated when a document with optional content is opened.
+        layersMenu = new javax.swing.JMenu("Layers");
+        layersMenu.setEnabled(false);
+        mainMenuBar.add(layersMenu);
+        // Re-assert the menu bar so the menu added after initComponents()'s setJMenuBar()/pack()
+        // is picked up -- notably by the macOS screen menu bar (apple.laf.useScreenMenuBar).
+        setJMenuBar(mainMenuBar);
 
         registerForMacOSXEvents();
     }
@@ -315,6 +326,7 @@ public class ViewerFrame extends javax.swing.JFrame implements ActionListener, I
 			File f = new File(fd.getDirectory(), fd.getFile());
 			currentDoc = new Document(f.getAbsolutePath());
 			displayPDF.setDocument(currentDoc);
+            setupLayers(); // APDFL-6716: build layer toggles before the first render
             goToPage(0);
             pageCountLabel.setText(" of " + currentDoc.getNumPages());
 		}
@@ -341,6 +353,55 @@ public class ViewerFrame extends javax.swing.JFrame implements ActionListener, I
             }
         }.execute();
 	}
+
+    // APDFL-6716: populate the Layers menu from the current document's optional-content groups.
+    // Toggling an entry updates the shared OptionalContentContext and re-renders the page, which
+    // exercises the new drawContents(BufferedImage, Matrix, Rect, OptionalContentContext) overload.
+    private void setupLayers() {
+        layersMenu.removeAll();
+        occ = null;
+        displayPDF.setOptionalContentContext(null);
+
+        final List<OptionalContentGroup> ocgs =
+            (currentDoc == null) ? null : currentDoc.getOptionalContentGroups();
+        if (ocgs != null && !ocgs.isEmpty()) {
+            // Reuse a single context instance for both toggling and rendering so state persists.
+            occ = currentDoc.getOptionalContentContext();
+            displayPDF.setOptionalContentContext(occ);
+
+            for (int i = 0; i < ocgs.size(); i++) {
+                final OptionalContentGroup ocg = ocgs.get(i);
+                String name = ocg.getName();
+                if (name == null || name.isEmpty())
+                    name = "Layer " + (i + 1);
+                final javax.swing.JCheckBoxMenuItem item =
+                    new javax.swing.JCheckBoxMenuItem(name, occ.getStateOfOCG(ocg));
+                item.addItemListener(new java.awt.event.ItemListener() {
+                    public void itemStateChanged(java.awt.event.ItemEvent e) {
+                        occ.setStateOfOCG(ocg, item.isSelected());
+                        redisplayCurrentPage();
+                    }
+                });
+                layersMenu.add(item);
+            }
+        }
+        layersMenu.setEnabled(layersMenu.getItemCount() > 0);
+        // Re-assert the menu bar so the macOS screen menu bar reflects the repopulated submenu;
+        // dynamic add/remove on an already-realized screen menu bar is otherwise not shown.
+        setJMenuBar(mainMenuBar);
+    }
+
+    // APDFL-6716: re-render the current page (used after a layer visibility change).
+    private void redisplayCurrentPage() {
+        if (currentDoc == null || displayPDF == null) return;
+        final int pageNumber = currentPage;
+        new ProtectedOperation<Object>() {
+            public Object doOperation() {
+                displayPDF.displayPage(pageNumber);
+                return null;
+            }
+        }.execute();
+    }
 
     private abstract class ProtectedOperation<T> {
         public T execute() {
